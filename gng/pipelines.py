@@ -7,8 +7,9 @@
 
 import pymongo
 
+
 class MongoPipeline:
-    collection_name = 'products'
+    collection_name = "products"
 
     def __init__(self, mongo_uri, mongo_db):
         self.mongo_uri = mongo_uri
@@ -17,8 +18,8 @@ class MongoPipeline:
     @classmethod
     def from_crawler(cls, crawler):
         return cls(
-            mongo_uri=crawler.settings.get('MONGO_URI'),
-            mongo_db=crawler.settings.get('MONGO_DATABASE', 'gng')
+            mongo_uri=crawler.settings.get("MONGO_URI"),
+            mongo_db=crawler.settings.get("MONGO_DATABASE", "gng"),
         )
 
     def open_spider(self, spider):
@@ -30,5 +31,7 @@ class MongoPipeline:
 
     def process_item(self, item, spider):
         item = dict(item)
-        self.db[self.collection_name].upsert_one({"permalink" : item["permalink"]}, {"$set": item})
+        self.db[self.collection_name].update_one(
+            {"permalink": item["permalink"]}, {"$set": item}, upsert=True
+        )
         return item

@@ -1,6 +1,15 @@
 # -*- coding: utf-8 -*-
 import scrapy
 import os
+from lxml import html
+
+
+def extract_text(string):
+    string = html.fromstring(string)
+    texts = " ".join(
+        [t for t in string.xpath("//text()") if (t != "\n" or t != "\xa0" or t != "")]
+    )
+    return texts
 
 
 class GadgetandgearSpider(scrapy.Spider):
@@ -84,12 +93,22 @@ class GadgetandgearSpider(scrapy.Spider):
             self.PRODUCT_SELECTOR["MINI_DESCRIPTION"]
         ).extract_first()
         colors = response.xpath(self.PRODUCT_SELECTOR["COLORS"]).extract()
+
         custom_color_description = response.xpath(
             self.PRODUCT_SELECTOR["CUSTOM_COLOR"]["CUSTOM_COLOR_DESCRIPTION"]
         ).extract()
         custom_color_sample_image = response.xpath(
             self.PRODUCT_SELECTOR["CUSTOM_COLOR"]["CUSTOM_COLOR_SAMPLE_IMAGE"]
         ).extract()
+
+        custom_color = []
+        for _color_description, _color_sample in zip(
+            custom_color_description, custom_color_sample_image
+        ):
+            custom_color.append(
+                {"color": _color_description, "sample_image": _color_sample}
+            )
+
         product_images = response.xpath(
             self.PRODUCT_SELECTOR["PRODUCT_IMAGES"]
         ).extract()
@@ -110,3 +129,54 @@ class GadgetandgearSpider(scrapy.Spider):
             product_price = None
 
         offer = response.xpath(self.PRODUCT_SELECTOR["OFFER"]).extract_first()
+
+        more_details_texts = [
+            txt.strip()
+            for txt in response.xpath(
+                self.PRODUCT_SELECTOR["MORE_DETAILS"]["TEXT"]
+            ).extract()
+            if (txt != "\n" or txt != "\xa0" or txt != "")
+        ]
+
+        more_details_texts = [t for t in more_details_texts if t != ""]
+
+        more_details_images = response.xpath(
+            self.PRODUCT_SELECTOR["MORE_DETAILS"]["IMAGE"]
+        ).extract()
+
+        specification_rows = response.xpath(
+            self.PRODUCT_SELECTOR["SPECIFICATION"]["ROWS"]
+        )
+
+        metadata = []
+
+        for row in specification_rows:
+            tds = row.xpath("td")
+            if len(tds) == 2:
+                td1, td2 = tds
+                td1 = extract_text(td1.extract())
+                td2 = extract_text(td2.extract())
+                metadata.append({"key": td1, "value": td2})
+            elif len(tds) == 1:
+                td = tds[0]
+                metadata.append({"heading": extract_text(td.extract())})
+
+        item = dict(
+            permalink=permalink,
+            breadcrumbs=breadcrumbs,
+            category=category,
+            brand_logo=brand_logo,
+            product_name=product_name,
+            mini_description=mini_description,
+            colors=colors,
+            custom_colors=custom_color,
+            product_images=product_images,
+            product_price_text=product_price_text,
+            product_price=product_price,
+            offer=offer,
+            more_details_texts=more_details_texts,
+            more_details_images=more_details_images,
+            metadata=metadata,
+        )
+
+        yield item
