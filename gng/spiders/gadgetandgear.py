@@ -60,9 +60,13 @@ class GadgetandgearSpider(scrapy.Spider):
     def parse(self, response):
         brands = response.xpath(self.BRAND_SELECTOR).extract()
         for brand in brands:
-            yield scrapy.Request(url=self.url + brand, callback=self.parse_brand)
+            yield scrapy.Request(
+                url=self.url + brand,
+                callback=self.parse_brand,
+                cb_kwargs={"brand": brand},
+            )
 
-    def parse_brand(self, response):
+    def parse_brand(self, response, brand):
         next_page = response.xpath(self.BRAND_NEXT_PAGE_SELECTOR).extract()[-1]
         next_page = next_page if "page=" in next_page else None
 
@@ -78,10 +82,11 @@ class GadgetandgearSpider(scrapy.Spider):
             product_parse_request = scrapy.Request(
                 url=self.url + product_link, callback=self.parse_product
             )
+            product_parse_request.cb_kwargs["brand"] = brand
             yield product_parse_request
 
-    def parse_product(self, response):
-        print("PARSING PRODUCT ", response.url)
+    def parse_product(self, response, brand):
+        brand = brand.split("/")[-1]
         permalink = response.url
         breadcrumbs = response.xpath(self.PRODUCT_SELECTOR["BREADCRUMBS"]).extract()
         category = breadcrumbs[-1]
@@ -162,6 +167,7 @@ class GadgetandgearSpider(scrapy.Spider):
                 metadata.append({"heading": extract_text(td.extract())})
 
         item = dict(
+            brand=brand,
             permalink=permalink,
             breadcrumbs=breadcrumbs,
             category=category,
